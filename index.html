@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>文字猎人 - 美的历程</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.88/epub.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f2f0e6;
+            --text-main: #2b2b2b;
+            --text-light: #707070;
+            --accent-green: #5c7a6e;
+            --accent-red: #8c4356;
+            --museum-bg: #12151c;
+            --gold-leaf: #bda069;
+            --card-bg: rgba(255, 255, 255, 0.6);
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Palatino Linotype", "Book Antiqua", "PingFang SC", "Songti SC", serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding-bottom: 90px; overflow-x: hidden; }
+        
+        #intro-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-color); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 1.5s ease; }
+        .intro-text { font-size: 1.5rem; letter-spacing: 4px; opacity: 0; transition: opacity 1.5s ease; text-align: center; line-height: 2; padding: 20px; }
+        #intro-input { background: transparent; border: none; border-bottom: 1px solid var(--accent-green); font-size: 1.5rem; text-align: center; width: 150px; outline: none; color: var(--accent-green); font-family: inherit; margin-top: 20px; }
+        
+        header { padding: 40px 20px 20px; text-align: center; border-bottom: 1px solid rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h1 { font-size: 1.8rem; font-weight: 400; letter-spacing: 6px; }
+        .subtitle { font-size: 0.85rem; color: var(--text-light); letter-spacing: 4px; margin-top: 8px; font-style: italic; }
+        
+        .container { padding: 0 20px 20px; display: none; animation: fadeIn 0.6s ease; }
+        .active-tab { display: block; }
+        
+        /* 猎场控制台与进度条 */
+        .hunt-dashboard { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid rgba(92,122,110,0.2); border-radius: 8px; padding: 20px; margin-bottom: 30px; }
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .timer-display { font-size: 2.5rem; font-variant-numeric: tabular-nums; font-weight: 300; color: var(--accent-green); }
+        .progress-bar-bg { width: 100%; height: 12px; background: rgba(0,0,0,0.08); border-radius: 6px; overflow: hidden; margin-bottom: 15px; }
+        .progress-bar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #5c7a6e, #7a9c8f); transition: width 1s linear; border-radius: 6px; }
+        .btn-group { display: flex; gap: 10px; }
+        .btn { flex: 1; padding: 12px 10px; border: 1px solid var(--accent-green); background: transparent; color: var(--accent-green); border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: 0.3s; letter-spacing: 1px; }
+        .btn:hover, .btn:active { background: var(--accent-green); color: #fff; }
+        .btn-solid { background: var(--accent-green); color: #fff; border: none; }
+        
+        /* 悬赏板 */
+        .quest-board { display: flex; flex-direction: column; gap: 25px; }
+        .quest-card { background: #fdfbf7; border: 1px solid #e8e4d9; border-radius: 4px; padding: 25px 20px; position: relative; box-shadow: 2px 5px 15px rgba(0,0,0,0.03); transition: 0.5s ease; }
+        .quest-card.abandoned { opacity: 0.6; background: #eae8e1; border-color: #d1cfc7; }
+        .quest-card::before { content: '◈'; position: absolute; top: 15px; right: 20px; color: var(--gold-leaf); font-size: 1.2rem; }
+        .quest-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 10px; line-height: 1.4; padding-right: 30px; }
+        .quest-meta { font-size: 0.8rem; color: var(--text-light); margin-bottom: 10px; display: flex; justify-content: space-between; }
+        .npc-story { font-size: 0.85rem; color: #555; background: rgba(0,0,0,0.02); padding: 10px; border-left: 2px solid var(--gold-leaf); margin-bottom: 15px; font-style: italic; line-height: 1.6; }
+        .quest-action-area { display: none; margin-top: 20px; animation: slideDown 0.4s ease; }
+        textarea, input[type="file"] { width: 100%; padding: 15px; border: 1px solid #e8e4d9; background: transparent; margin-bottom: 15px; font-size: 0.9rem; resize: none; border-radius: 4px; }
+        textarea:focus { outline: none; border-color: var(--accent-green); }
+
+        .finish-tape { position: fixed; top: 45%; left: -100%; width: 200%; background: var(--accent-red); color: #fff; font-size: 1.8rem; letter-spacing: 10px; font-weight: 300; text-align: center; padding: 6px 0; transform: rotate(-3deg); z-index: 300; opacity: 0; pointer-events: none; transition: all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow: 0 4px 20px rgba(140, 67, 86, 0.4); }
+        .finish-tape.show { left: -50%; opacity: 1; }
+
+        /* 阅读进度 */
+        .badge-container { text-align: center; margin-bottom: 20px; display: none; padding: 25px 20px; background: rgba(189, 160, 105, 0.05); border-radius: 8px; border: 1px solid var(--gold-leaf); animation: fadeIn 1s; }
+        .epub-loader { text-align: center; padding: 15px; border: 1px dashed var(--accent-green); border-radius: 6px; margin-bottom: 20px; background: rgba(92,122,110,0.05); }
+        .chapter-list { display: flex; flex-direction: column; gap: 15px; }
+        .chapter-item { padding: 20px; border: 1px solid rgba(0,0,0,0.08); position: relative; transition: all 0.4s ease; border-radius: 6px; display: flex; flex-direction: column; }
+        .chapter-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .chapter-desc { font-size: 0.85rem; color: var(--text-light); margin-bottom: 10px; }
+        .chapter-item.captured { border-color: var(--accent-green); background: rgba(92,122,110,0.05); }
+        .chapter-item.captured .chapter-title { color: var(--accent-green); }
+        
+        /* 展馆星云螺旋 */
+        #tab-museum { background-color: var(--museum-bg); color: #e0e0e0; min-height: 100vh; padding: 40px 20px; position: relative; overflow: hidden; }
+        .museum-header { text-align: center; margin-bottom: 50px; position: relative; z-index: 10; }
+        .museum-header h2 { font-weight: 300; letter-spacing: 5px; color: var(--gold-leaf); }
+        .nebula-ribbon { position: absolute; top: 0; left: 50%; width: 140px; height: 100%; transform: translateX(-50%); background: radial-gradient(ellipse at center, rgba(92,122,110,0.3) 0%, rgba(189,160,105,0.1) 40%, transparent 70%); filter: blur(20px); z-index: 1; pointer-events: none; }
+        
+        /* 螺旋时空飘带 (纯CSS SVG 背景) */
+        .timeline::before {
+            content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 100px; height: 100%;
+            background: url('data:image/svg+xml;utf8,<svg width="100" height="400" xmlns="http://www.w3.org/2000/svg"><path d="M50,0 C100,100 100,100 50,200 C0,300 0,300 50,400" stroke="%23bda069" fill="none" stroke-width="2" opacity="0.6"/></svg>') repeat-y top center;
+            z-index: 1; filter: drop-shadow(0 0 8px rgba(92,122,110,0.8));
+        }
+
+        .timeline { position: relative; max-width: 600px; margin: 0 auto; padding-bottom: 50px; z-index: 10; }
+        .timeline-item { position: relative; padding: 35px 0; width: 50%; }
+        .timeline-item:nth-child(odd) { left: 0; padding-right: 40px; text-align: right; }
+        .timeline-item:nth-child(even) { left: 50%; padding-left: 40px; text-align: left; }
+        .artifact-node { position: absolute; top: 50%; width: 8px; height: 8px; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translateY(-50%); z-index: 2; transition: 0.8s; }
+        .timeline-item:nth-child(odd) .artifact-node { right: -4px; }
+        .timeline-item:nth-child(even) .artifact-node { left: -4px; }
+        .artifact-content { opacity: 0.3; transition: 0.8s ease; filter: blur(1px); }
+        .timeline-item.unlocked .artifact-content { opacity: 1; filter: blur(0); }
+        .timeline-item.unlocked .artifact-node { background: var(--gold-leaf); box-shadow: 0 0 15px var(--gold-leaf); transform: translateY(-50%) scale(1.5); }
+        .art-name { font-size: 1rem; color: var(--gold-leaf); margin-bottom: 8px; letter-spacing: 1px; }
+        .art-desc { font-size: 0.8rem; line-height: 1.6; color: #aaa; }
+
+        /* 档案 */
+        .profile-card { border: 1px solid rgba(0,0,0,0.1); padding: 30px; text-align: center; margin-bottom: 20px; border-radius: 8px; background: #fff; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+        .stat-item { display: flex; flex-direction: column; gap: 5px; }
+        .stat-value { font-size: 1.4rem; color: var(--accent-green); }
+        .title-badge { display: inline-block; padding: 6px 12px; border: 1px solid var(--accent-green); color: var(--accent-green); font-size: 0.8rem; margin: 4px; border-radius: 20px; }
+        .review-box { background: #fff; padding: 15px; border-radius: 6px; margin-bottom: 12px; font-size: 0.85rem; border-left: 3px solid var(--gold-leaf); box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+
+        /* 导航 */
+        .nav-bar { position: fixed; bottom: 0; width: 100%; background: rgba(242, 240, 230, 0.95); backdrop-filter: blur(10px); display: flex; justify-content: space-around; padding: 15px 0 25px; border-top: 1px solid rgba(0,0,0,0.05); z-index: 100; }
+        .nav-item { font-size: 0.8rem; color: var(--text-light); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: 0.3s; }
+        .nav-item.active { color: var(--accent-green); }
+
+        /* 浪漫烟花 */
+        #fireworks-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999; overflow: hidden; }
+        .fw-particle { position: absolute; border-radius: 50%; opacity: 0; mix-blend-mode: multiply; }
+
+        /* EPUB 阅读器弹窗 */
+        #reader-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 1000; flex-direction: column; }
+        .reader-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: var(--bg-color); border-bottom: 1px solid #ddd; }
+        #viewer { flex: 1; overflow: hidden; width: 100%; }
+        .reader-footer { display: flex; justify-content: space-between; padding: 10px 20px; background: var(--bg-color); border-top: 1px solid #ddd; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideDown { from { opacity: 0; height: 0; } to { opacity: 1; height: auto; } }
+    </style>
+</head>
+<body>
+
+    <div id="intro-screen">
+        <div class="intro-text" id="intro-msg1">
+            文字猎人，你的名字是<br>
+            <input type="text" id="intro-input" placeholder="输入名字" autocomplete="off"><br>
+            <button class="btn btn-solid" style="margin-top:20px; width:120px;" onclick="submitName()">确认</button>
+        </div>
+        <div class="intro-text" id="intro-msg2" style="display:none;"></div>
+    </div>
+
+    <header>
+        <h1>文字猎人</h1>
+        <div class="subtitle">《 美 的 历 程 》</div>
+    </header>
+
+    <div id="fireworks-container"></div>
+    <div class="finish-tape" id="finishTape">FINISH</div>
+
+    <div id="tab-hunt" class="container active-tab">
+        <div class="hunt-dashboard">
+            <div class="dashboard-header">
+                <span style="font-size: 0.85rem; color: var(--text-light); letter-spacing: 2px;">狩猎倒计时</span>
+                <div class="timer-display" id="global-timer">05:00</div>
+            </div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="timer-progress"></div></div>
+            <div class="btn-group">
+                <button class="btn btn-solid" id="btn-start" onclick="toggleTimer()">开始沉浸</button>
+                <button class="btn" onclick="addTime()">加时 +5分</button>
+                <button class="btn" style="border-color: #d1bfae; color: #a38c77;" onclick="endTimer()">结算结束</button>
+            </div>
+        </div>
+        <div style="text-align: center; margin: 30px 0 20px; font-size: 0.85rem; color: var(--text-light); letter-spacing: 2px;">✦ 世界悬赏布告栏 ✦</div>
+        <div class="quest-board" id="quest-board"></div>
+    </div>
+
+    <div id="tab-reading" class="container">
+        
+        <div class="badge-container" id="completion-badge">
+            <div style="color: var(--gold-leaf); font-style: italic; letter-spacing: 2px; line-height: 1.8;">
+                ✦ 满室光华。猎人，你已将全卷刻入骨血。前路漫漫，请继续享受属于你的美学之旅。 ✦
+            </div>
+        </div>
+        
+        <div style="text-align: right; margin-bottom: 10px;">
+            <input type="file" id="epub-input" accept=".epub" style="display:none;" onchange="loadEpub(event)">
+            <button class="btn" style="border:none; font-size:0.75rem; color:var(--accent-green); padding: 5px;" onclick="document.getElementById('epub-input').click()">[ 重新注入/更换 EPUB ]</button>
+        </div>
+
+        <div class="epub-loader" id="epub-loader-area">
+            <p style="font-size: 0.85rem; margin-bottom: 10px;">尚未挂载副本世界：《美的历程.epub》</p>
+            <button class="btn btn-solid" onclick="document.getElementById('epub-input').click()">注入EPUB文件</button>
+            <p style="font-size: 0.75rem; color:gray; margin-top: 5px;">*只需上传一次，将永久保存在本地储物柜</p>
+        </div>
+
+        <p style="text-align: center; font-size: 0.85rem; color: var(--text-light); margin-bottom: 30px; line-height: 1.8;">点击章节进入阅读，或标记捕获</p>
+        <div class="chapter-list" id="chapter-list"></div>
+    </div>
+
+    <div id="tab-museum" class="container">
+        <div class="nebula-ribbon"></div>
+        <div class="museum-header">
+            <h2>君 之 博 物 馆</h2>
+            <p style="font-size: 0.8rem; color: #888; margin-top: 10px; font-style: italic;">“岁月失语，惟石能言。”</p>
+        </div>
+        <div class="timeline" id="museum-timeline"></div>
+    </div>
+
+    <div id="tab-profile" class="container">
+        <div class="profile-card">
+            <div style="font-size: 2.5rem; color: var(--accent-green); margin-bottom: 10px;">▤</div>
+            <h2 style="font-weight: 300; letter-spacing: 2px; margin-bottom: 5px;">文字猎人 <span id="profile-name"></span></h2>
+            <p style="font-size: 0.85rem; color: var(--text-light);">等级评定：<span id="hunter-level" style="color: var(--gold-leaf); font-weight: bold;">见习猎手</span></p>
+            
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-tokens">0</span>
+                    <span style="font-size: 0.75rem; color: gray;">获得报酬(Token)</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-quests">0</span>
+                    <span style="font-size: 0.75rem; color: gray;">完成悬赏(个)</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-time">0</span>
+                    <span style="font-size: 0.75rem; color: gray;">阅读时长(分钟)</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-progress">0%</span>
+                    <span style="font-size: 0.75rem; color: gray;">真实阅读进度</span>
+                </div>
+            </div>
+        </div>
+        <h3 style="font-size: 0.95rem; font-weight: normal; margin-bottom: 15px; border-left: 2px solid var(--accent-green); padding-left: 10px;">已获称号</h3>
+        <div id="title-tags" style="margin-bottom: 30px; display: flex; flex-wrap: wrap;"></div>
+        <h3 style="font-size: 0.95rem; font-weight: normal; margin-bottom: 15px; border-left: 2px solid var(--accent-green); padding-left: 10px;">委托手札</h3>
+        <div id="review-log"></div>
+    </div>
+
+    <div class="nav-bar">
+        <div class="nav-item active" onclick="switchTab('hunt', this)"><span style="font-size: 1.2rem;">◓</span>猎场</div>
+        <div class="nav-item" onclick="switchTab('reading', this)"><span style="font-size: 1.2rem;">◫</span>阅读</div>
+        <div class="nav-item" onclick="switchTab('museum', this)"><span style="font-size: 1.2rem;">◈</span>展馆</div>
+        <div class="nav-item" onclick="switchTab('profile', this)"><span style="font-size: 1.2rem;">☖</span>档案</div>
+    </div>
+
+    <div id="reader-modal">
+        <div class="reader-header">
+            <button class="btn" style="width:auto; padding:5px 15px;" onclick="closeReader()">返回退出</button>
+            <span style="font-size: 0.9rem; font-weight:bold; color:var(--text-main);">书卷阅读中</span>
+            <button class="btn" style="width:auto; padding:5px 15px;" onclick="addBookmark()">🔖 书签</button>
+        </div>
+        <div id="viewer"></div>
+        <div class="reader-footer">
+            <button class="btn" onclick="rendition.prev()">上一页</button>
+            <span id="reading-pct" style="font-size: 0.85rem; line-height: 2.5; color: var(--text-light);">计算中...</span>
+            <button class="btn" onclick="rendition.next()">下一页</button>
+        </div>
+    </div>
+
+<script>
+    const db = [
+        { chap: "远古图腾", type: "解答", title: "早期陶器为何画抽象几何纹？", npc: "好奇宝宝Gemini", story: "我最近在看博物馆展览，发现早期的陶器上全是些看不懂的线条。难道远古人也懂抽象艺术？求猎人大大解惑！", item: "半坡人面鱼纹盆", desc: "抽象几何纹是先民在祭祀中将动物符号化的图腾。", npcReply: "原来远古人的脑洞好大！⭐⭐⭐⭐⭐", reward: 100, titleUnlock: "新石器时代-与麋鹿共处的天真猎人" },
+        { chap: "远古图腾", type: "寻宝", title: "寻找带有跳舞小人的彩陶盆", npc: "神秘收藏家G", story: "我听闻有一件陶器，上面画着手拉手跳舞的人，充满了天真与欢愉。请帮我找到它的线索。", item: "舞蹈纹彩陶盆", desc: "手拉手的生机勃勃，代表母系氏族童年般的纯真。", npcReply: "完美的品相！正是我想要的生机勃勃。⭐⭐⭐⭐⭐", reward: 300 },
+        { chap: "远古图腾", type: "寻人", title: "寻找半坡村的女首领", npc: "寻根者G", story: "梦里总是出现一位温和而有力量的远古女性，我想知道在那个母系社会里，她们是怎样生活的。", item: "骨针与陶罐遗物", desc: "母系氏族社会中，女性主导着农业与制陶的温和岁月。", npcReply: "这就是老祖母的遗物吗？好感动。⭐⭐⭐⭐", reward: 200 },
+        { chap: "青铜饕餮", type: "解答", title: "什么是青铜的狞厉之美？", npc: "富二代大学生GG", story: "明天要交美学作业了，导师非让我解释‘狞厉’是什么意思，看着那些青铜器我只觉得吓人啊，救命！", item: "司母戊大方鼎", desc: "用恐怖建立权威，巨大的威压感中透着原始力量。", npcReply: "本少爷的作业有救了！赏金拿去！⭐⭐⭐⭐⭐", reward: 500, titleUnlock: "直面深渊的无畏者" },
+        { chap: "青铜饕餮", type: "寻物", title: "寻找一只青铜做的羊", npc: "贵妇Gemini女士", story: "最近家里装修，缺一个镇得住场子的摆件，听说商朝有个四只羊的青铜尊很气派，猎人能帮我找找图样吗？", item: "四羊方尊", desc: "极致繁复的工艺，体现商周鼎盛时期的物质控制力。", npcReply: "放在我家客厅刚刚好。⭐⭐⭐⭐", reward: 400 },
+        { chap: "青铜饕餮", type: "寻物", title: "寻找最早的青铜酒杯", npc: "酒鬼G大叔", story: "喝酒就要用最古老的杯子才带劲！听说商代贵族的酒杯很特别，请帮我寻觅一二。", item: "商代青铜爵", desc: "不仅是酒器，更是阶级地位与神权沟通的礼器。", npcReply: "用这杯子喝酒，感觉自己像个王！⭐⭐⭐⭐⭐", reward: 350 },
+        { chap: "先秦理性", type: "寻物", title: "寻找古代的大型音乐播放器", npc: "音乐博主G", story: "我要做一期关于中国古代音乐的视频，听说先秦有一套能占据半个屋子的巨大乐器？", item: "曾侯乙编钟", desc: "礼乐制度的物化，用音乐建立人间的秩序。", npcReply: "这音质绝了，先秦的Livehouse！⭐⭐⭐⭐⭐", reward: 600 },
+        { chap: "先秦理性", type: "寻人", title: "寻找秦朝当士兵的爱人", npc: "觉醒前世的G小姐", story: "我突然觉醒了前世记忆，想起自己曾经在秦朝当士兵的爱人。求你帮我找回他的兵马俑！", item: "秦兵马俑", desc: "缺乏灵魂跃动，是秦代庞大帝国机器的缩影。", npcReply: "呜呜，虽然他长胖了，但确实是我心心念念的爱人。⭐⭐⭐⭐⭐", reward: 800 },
+        { chap: "先秦理性", type: "解答", title: "儒道互补到底怎么理解？", npc: "哲学系学妹", story: "书上说中国文人都是‘儒道互补’，一会儿入世一会儿出世的，这到底是怎么一种心理状态呀？", item: "先秦竹简", desc: "儒家入世建立秩序，道家出世保全自我，塑造了中国文人心理。", npcReply: "听君一席话，胜读十年书！⭐⭐⭐⭐⭐", reward: 500, titleUnlock: "礼乐之光的觉醒者" },
+        { chap: "楚辞汉赋", type: "寻宝", title: "寻找关于飞仙的丝绸画", npc: "修仙爱好者G", story: "我正在修炼一门古代仙术，急需一幅汉代楚地描绘了天上人间的神秘帛画作为观想图！", item: "马王堆T型帛画", desc: "楚地保留的满天神佛，是极具浪漫色彩的宇宙观。", npcReply: "太浪漫了！拿去当屏保！⭐⭐⭐⭐⭐", reward: 700, titleUnlock: "漫游云端的幻想家" },
+        { chap: "楚辞汉赋", type: "寻物", title: "求一匹脚踩燕子的神马", npc: "赛马大亨G", story: "我要为我的赛马场找一个最完美的标志，听说汉代有一匹连燕子都能踩在脚下的铜马，快给我找来！", item: "马踏飞燕", desc: "汉代艺术极具动感与力量，充满征服世界的自信。", npcReply: "好马！这姿态太飘逸了。⭐⭐⭐⭐⭐", reward: 900 },
+        { chap: "楚辞汉赋", type: "寻人", title: "寻找人首蛇身的创世神像", npc: "神话学者G", story: "我在研究汉代画像砖，需要伏羲女娲交尾的图像来佐证远古生命崇拜，猎人能潜入古墓帮我拓印一份吗？", item: "伏羲女娲画像砖", desc: "汉代古拙的气势，展现了对生命繁衍的原始崇拜。", npcReply: "这种古拙的力量感，无可替代。⭐⭐⭐⭐", reward: 450 },
+        { chap: "魏晋风度", type: "解答", title: "天下大乱，文人为何最洒脱？", npc: "抑郁症患者G", story: "现在生活压力好大，但我听说魏晋时期天下大乱朝不保夕，那帮文人反而活得最潇洒，他们是怎么做到的？", item: "竹林七贤砖画", desc: "外界崩溃促使向内寻找自我，欣赏独立人格。", npcReply: "看完答案，我释怀了许多...⭐⭐⭐⭐⭐", reward: 600 },
+        { chap: "魏晋风度", type: "寻宝", title: "寻找曹植暗恋女神的连环画", npc: "八卦记者G", story: "大新闻！听说曹植把暗恋嫂子（甄宓）的故事写成了赋，还有人画成了连环画！猎人快去拿到这本八卦神作！", item: "《洛神赋图》", desc: "春蚕吐丝般的线条，画出“气韵生动”的神韵。", npcReply: "这瓜保熟！曹植是个体面人。⭐⭐⭐⭐⭐", reward: 800, titleUnlock: "超然事外的艺术境界" },
+        { chap: "魏晋风度", type: "寻宝", title: "寻找天下第一的草稿纸", npc: "书法狂人G", story: "我要临摹天下最好的行书！听说王羲之喝醉酒随便写了一篇草稿，竟成了千古绝唱，帮我找到它！", item: "《兰亭集序》摹本", desc: "王羲之微醺时的神来之笔，字如行云流水。", npcReply: "真是遒媚劲健，绝了！⭐⭐⭐⭐⭐", reward: 1000 },
+        { chap: "佛陀世容", type: "寻物", title: "寻找北朝悲苦的一抹微笑", npc: "苦行僧G", story: "世人皆苦，我想在北朝的战乱泥塑中，寻找那一抹能抚慰人心的、带着悲悯的佛像微笑。", item: "麦积山泥塑微笑", desc: "悲惨现实中，人们将微茫希望寄托在佛像悲悯的微笑上。", npcReply: "南无阿弥陀佛，善哉。⭐⭐⭐⭐⭐", reward: 500 },
+        { chap: "佛陀世容", type: "寻物", title: "寻找不长翅膀也能飞的神仙", npc: "航天工程师G", story: "西方的天使都要长翅膀，但听说敦煌的神仙不借外力，仅凭几条彩带就能翱翔九天，帮我找来研究下空气动力学！", item: "敦煌飞天壁画", desc: "打破地心引力，仅凭彩带展现极致的自由灵动。", npcReply: "这就是古代的空气动力学！⭐⭐⭐⭐⭐", reward: 700 },
+        { chap: "佛陀世容", type: "寻人", title: "寻找武则天长相的雕像", npc: "女权主义者G", story: "我想瞻仰唯一女皇的风采！听说龙门石窟最大的那尊佛像，就是按武则天的脸雕刻的，快帮我定位！", item: "龙门石窟卢舍那大佛", desc: "雍容华贵，充满现实人间君王威仪的盛唐气象。", npcReply: "这就是女皇的霸气！⭐⭐⭐⭐⭐", reward: 1200, titleUnlock: "语默动静的宗教雕塑" },
+        { chap: "盛唐之音", type: "寻物", title: "寻找李世民的六匹战马", npc: "历史迷G", story: "大唐武德充沛！我想要李世民陵墓前那六匹陪他打天下的战马浮雕资料，感受一下那个黄金时代的风暴！", item: "昭陵六骏", desc: "向上生长的黄金时代，充满驾驭风暴的无畏气概。", npcReply: "大唐武德充沛！⭐⭐⭐⭐⭐", reward: 850 },
+        { chap: "盛唐之音", type: "解答", title: "李白的诗为什么那么豪迈？", npc: "语文老师G", story: "明天要上李白的课，我想给学生讲讲，除了他自己是个天才，到底是什么样的时代背景给了他那种“天生我材必有用”的底气？", item: "《将进酒》诗意", desc: "国力强盛带来的绝对自信，天才与时代的共振。", npcReply: "总结到位，明天就给学生讲。⭐⭐⭐⭐⭐", reward: 600, titleUnlock: "如鸣佩环-盛唐之音" },
+        { chap: "盛唐之音", type: "寻宝", title: "寻找满纸血泪的绝世书法", npc: "书法爱好者G", story: "听说颜真卿在得知侄子战死后，悲愤交加写下的一篇祭文，涂涂抹抹全是血泪，却是天下第二行书，我想见识一下这股力量。", item: "《祭侄文稿》", desc: "悲痛中打破规矩，达到规矩与狂放统一的境界。", npcReply: "看着字迹，能感受到颜公的悲愤。⭐⭐⭐⭐⭐", reward: 1500 },
+        { chap: "中唐韵味", type: "寻人", title: "偷拍韩大人家里的夜间派对", npc: "大内密探G", story: "皇帝怀疑韩熙载有反骨，命我潜入他家探查夜宴情况。猎人，帮我画下宴会上的每一幕，看看他到底是狂欢还是落寞。", item: "《韩熙载夜宴图》", desc: "繁华喧闹背后的深沉落寞，预示一个时代的没落。", npcReply: "情报准确，猎人身手不凡！⭐⭐⭐⭐⭐", reward: 900 },
+        { chap: "中唐韵味", type: "解答", title: "白居易的诗为何老妪都能懂？", npc: "平民老奶奶", story: "以前的诗都太高深了，只有白先生的诗我这老婆子听得懂。猎人，书里是怎么评价这种现象的呀？", item: "《长恨歌》文本", desc: "中唐文艺开始走向世俗化与细腻化，贴近市民情感。", npcReply: "写得真好，老婆子我也听懂了。⭐⭐⭐⭐", reward: 300 },
+        { chap: "中唐韵味", type: "寻物", title: "寻找描绘捣练衣服的画作", npc: "服装设计师G", story: "我想复原唐代女性的服饰和丰腴之美，听说有一幅画专门画了宫廷妇女捣练丝绸的劳动场景，快帮我找找！", item: "《捣练图》", desc: "线条圆润，色彩柔和，体现了中唐女性的丰腴之美。", npcReply: "这配色放在今天依然时尚。⭐⭐⭐⭐⭐", reward: 600 },
+        { chap: "宋元山水", type: "解答", title: "宋代山水画人在里面为何那么小？", npc: "风景摄影师G", story: "我看北宋的山水画，大山大水的，找个人比找蚂蚁还难。为什么要这么构图？这体现了什么自然观？", item: "《溪山行旅图》", desc: "体现了北宋山水的“无我之境”，人对自然充满敬畏。", npcReply: "受教了，以后构图也要这样！⭐⭐⭐⭐⭐", reward: 800 },
+        { chap: "宋元山水", type: "寻宝", title: "寻找一幅极简的残山剩水", npc: "极简主义者G", story: "我不喜欢满盈盈的画面，听说南宋有个叫马远的画家，外号‘马一角’，专门画大面积留白的残山剩水，帮我找一幅他的代表作！", item: "马远《寒江独钓图》", desc: "南宋的“有我之境”，大量留白，充满诗意与孤寂。", npcReply: "留白的美感，太高级了。⭐⭐⭐⭐⭐", reward: 900 },
+        { chap: "宋元山水", type: "寻物", title: "寻找画满枯木竹石的画", npc: "文人雅士G", story: "我只求意境，不求形似！听说苏东坡画的石头像蜗牛，树枝像鹿角，全是胸中逸气。请帮我寻来一观。", item: "苏轼《枯木怪石图》", desc: "不求形似，只求抒发胸中逸气，文人画的开端。", npcReply: "形似不重要，神韵全在笔墨间。⭐⭐⭐⭐⭐", reward: 1000, titleUnlock: "无我之境的跋涉者" },
+        { chap: "明清文艺", type: "寻宝", title: "急！母皇大寿求一张唐寅的画", npc: "皇室大公主", story: "母皇大寿快到了！她最喜欢江南才子唐伯虎那种带着点世俗风情又不失文人雅致的画，猎人快去江南帮本宫寻来！", item: "唐寅《杏花图》", desc: "市民文艺兴起，文人画更强调个人的世俗情感。", npcReply: "母皇很开心，赏！以后本宫罩你！⭐⭐⭐⭐⭐", reward: 2000 },
+        { chap: "明清文艺", type: "解答", title: "什么是‘庭院深深’的美学？", npc: "建筑系学生GG", story: "在做江南园林的课题，实在搞不懂如何在那么小的空间里造出那种‘走不到头’的错觉，书里是怎么总结这种美学的？", item: "江南古典园林", desc: "通过借景框景，在有限空间创造出无限的时空感。", npcReply: "这就是中国人的空间魔法！⭐⭐⭐⭐⭐", reward: 1200, titleUnlock: "庭院深深深几许-园林艺术的享受者" },
+        { chap: "明清文艺", type: "寻人", title: "寻找大观园里的痴情种", npc: "言情小说家G", story: "我在构思一部封建末世的悲剧小说，需要一个叛逆、多情、最终悟道出家的贵族公子形象做参考，猎人有什么推荐吗？", item: "《红楼梦》贾宝玉", desc: "封建社会末期的叛逆者，充满对生命无常的悲剧感。", npcReply: "字字看来皆是血，十年辛苦不寻常。⭐⭐⭐⭐⭐", reward: 1500 }
+    ];
+
+    const chaptersData = [
+        { name: "一、远古图腾", desc: "原始狂野的生命力与巫术的滥觞。" },
+        { name: "二、青铜饕餮", desc: "狞厉的美，恐惧与权威的时代。" },
+        { name: "三、先秦理性", desc: "礼乐取代鬼神，儒道互补的奠基。" },
+        { name: "四、楚辞汉赋", desc: "南方的浪漫神话与大汉的磅礴。" },
+        { name: "五、魏晋风度", desc: "人的觉醒，秀骨清像与超然物外。" },
+        { name: "六、佛陀世容", desc: "从悲苦瘦骨到雍容华贵的世俗化。" },
+        { name: "七、盛唐之音", desc: "青春、自由、豪迈的绝对自信。" },
+        { name: "八、中唐韵味", desc: "繁华褪去后的细腻、孤独与世俗。" },
+        { name: "九、宋元山水", desc: "从无我之境的敬畏，到抒情的留白。" },
+        { name: "十、明清文艺", desc: "浪漫与纵欲，市井小说与园林时空。" }
+    ];
+
+    let state = {
+        hunterName: localStorage.getItem('v6_name') || "",
+        questStates: JSON.parse(localStorage.getItem('v6_qstates')) || Array(30).fill("active"), // active, abandoned, completed
+        completedNum: parseInt(localStorage.getItem('v6_comp')) || 0,
+        tokens: parseInt(localStorage.getItem('v6_tokens')) || 0,
+        readTimeTotal: parseInt(localStorage.getItem('v6_time')) || 0,
+        logs: JSON.parse(localStorage.getItem('v6_logs')) || [],
+        chaps: JSON.parse(localStorage.getItem('v6_chaps')) || [],
+        epubLoc: localStorage.getItem('v6_epubLoc') || null
+    };
+
+    let timerInterval = null, timeLeft = 0, timeTotal = 0, isRunning = false;
+    let book = null, rendition = null;
+
+    function init() {
+        if(!state.hunterName) {
+            document.getElementById('intro-screen').style.opacity = 1;
+            setTimeout(() => { document.getElementById('intro-msg1').style.opacity = 1; }, 500);
+        } else {
+            document.getElementById('intro-screen').style.display = 'none';
+            document.getElementById('profile-name').innerText = state.hunterName;
+            startApp();
+        }
+    }
+
+    function submitName() {
+        let name = document.getElementById('intro-input').value.trim();
+        if(!name) return;
+        state.hunterName = name;
+        localStorage.setItem('v6_name', name);
+        document.getElementById('profile-name').innerText = name;
+        
+        document.getElementById('intro-msg1').style.opacity = 0;
+        setTimeout(() => {
+            document.getElementById('intro-msg1').style.display = 'none';
+            let msg2 = document.getElementById('intro-msg2');
+            msg2.innerHTML = `这里是副本世界《美的历程》<br><br>文字猎人 <span style="color:var(--accent-green);font-size:1.8rem;">${name}</span><br><br>请尽情享受吧~`;
+            msg2.style.display = 'block';
+            void msg2.offsetWidth; 
+            msg2.style.opacity = 1;
+            
+            setTimeout(() => {
+                document.getElementById('intro-screen').style.opacity = 0;
+                setTimeout(() => {
+                    document.getElementById('intro-screen').style.display = 'none';
+                    startApp();
+                }, 1500);
+            }, 3000);
+        }, 1500);
+    }
+
+    function startApp() {
+        loadStoredEpub();
+        renderQuests();
+        renderChapters();
+        renderMuseum();
+        renderProfile();
+    }
+
+    /* === EPUB 核心逻辑 === */
+    async function loadStoredEpub() {
+        try {
+            let storedData = await localforage.getItem('v6_epubData');
+            if(storedData) {
+                document.getElementById('epub-loader-area').style.display = 'none';
+                initEpub(storedData);
+            }
+        } catch(e) { console.error("加载本地书卷失败", e); }
+    }
+
+    function loadEpub(e) {
+        let file = e.target.files[0];
+        if (window.FileReader && file) {
+            let reader = new FileReader();
+            reader.onload = async function(event) {
+                let epubData = event.target.result;
+                await localforage.setItem('v6_epubData', epubData);
+                document.getElementById('epub-loader-area').style.display = 'none';
+                initEpub(epubData);
+                alert("副本数据注入成功！你可以点击章节开始阅读了。");
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    }
+
+    function initEpub(epubData) {
+        try {
+            book = ePub();
+            book.open(epubData, "binary");
+            book.ready.then(() => {
+                return book.locations.generate(1600);
+            }).then(locations => {
+                updateReadingProgress();
+            }).catch(err => {
+                console.log("EPUB位置解析中断:", err);
+            });
+        } catch(e) { console.error(e); }
+    }
+
+    function openChapter(chapIndex) {
+        if(!book) {
+            alert("请先注入EPUB文件，即可开启阅读模式。");
+            return;
+        }
+        document.getElementById('reader-modal').style.display = "flex";
+        
+        if(!rendition) {
+            rendition = book.renderTo("viewer", { width: "100%", height: "100%", spread: "none" });
+            rendition.on("relocated", function(location){
+                state.epubLoc = location.start.cfi;
+                saveData();
+                updateReadingProgress();
+            });
+        }
+        
+        if(state.epubLoc) { rendition.display(state.epubLoc); } 
+        else { rendition.display(); }
+    }
+
+    function closeReader() { document.getElementById('reader-modal').style.display = "none"; }
+    function addBookmark() {
+        if(!rendition || !state.epubLoc) return;
+        alert("书签已记录当前位置！下次查阅会自动恢复。");
+    }
+    function updateReadingProgress() {
+        if(book && book.locations.length > 0 && state.epubLoc) {
+            let percentage = book.locations.percentageFromCfi(state.epubLoc);
+            let pctString = Math.round(percentage * 100) + "%";
+            document.getElementById('reading-pct').innerText = pctString;
+            document.getElementById('stat-progress').innerText = pctString;
+        }
+    }
+
+    /* === 倒计时 === */
+    function toggleTimer() {
+        const btn = document.getElementById('btn-start');
+        if(!isRunning) {
+            if(timeLeft <= 0) { timeLeft = 300; timeTotal = 300; }
+            isRunning = true;
+            btn.innerText = "暂停阅读";
+            btn.style.background = "transparent"; btn.style.color = "var(--accent-green)";
+            timerInterval = setInterval(() => {
+                if(timeLeft > 0) { timeLeft--; state.readTimeTotal++; updateTimerUI(); } 
+                else { endTimer(); }
+            }, 1000);
+        } else {
+            isRunning = false; clearInterval(timerInterval);
+            btn.innerText = "继续沉浸"; btn.style.background = "var(--accent-green)"; btn.style.color = "#fff";
+        }
+    }
+    function addTime() {
+        timeLeft += 300; timeTotal += 300; updateTimerUI();
+        if(!isRunning) toggleTimer();
+    }
+    function endTimer() {
+        isRunning = false; clearInterval(timerInterval);
+        document.getElementById('btn-start').innerText = "开始沉浸";
+        document.getElementById('btn-start').style.background = "var(--accent-green)"; document.getElementById('btn-start').style.color = "#fff";
+        saveData(); renderProfile();
+        const tape = document.getElementById('finishTape');
+        tape.classList.add('show');
+        setTimeout(() => { tape.classList.remove('show'); timeLeft = 0; timeTotal = 0; updateTimerUI(); }, 1500);
+    }
+    function updateTimerUI() {
+        let m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+        let s = (timeLeft % 60).toString().padStart(2, '0');
+        document.getElementById('global-timer').innerText = `${m}:${s}`;
+        let pct = timeTotal > 0 ? (timeLeft / timeTotal) * 100 : 0;
+        document.getElementById('timer-progress').style.width = pct + '%';
+    }
+
+    /* === 猎场：动态补位机制 === */
+    function renderQuests() {
+        const board = document.getElementById('quest-board');
+        board.innerHTML = "";
+        
+        let activeHTML = '';
+        let abandonedHTML = '';
+        let activeCount = 0;
+
+        for(let i=0; i<30; i++) {
+            if(state.questStates[i] === "completed") continue;
+            let q = db[i];
+            
+            if(state.questStates[i] === "active") {
+                if(activeCount < 3) {
+                    activeHTML += createQuestCard(i, q, false);
+                    activeCount++;
+                }
+            } else if (state.questStates[i] === "abandoned") {
+                abandonedHTML += createQuestCard(i, q, true);
+            }
+        }
+        
+        if(activeHTML === '' && abandonedHTML === '') {
+            board.innerHTML = "<p style='text-align:center; padding: 40px; color: var(--text-light);'>✦ 悬赏已被你扫荡一空。<br>你是传奇文字猎人。</p>";
+        } else {
+            board.innerHTML = activeHTML + abandonedHTML;
+        }
+    }
+
+    function createQuestCard(i, q, isAb) {
+        return `
+        <div class="quest-card ${isAb ? 'abandoned' : ''}" id="quest-card-${i}">
+            <div style="font-size: 0.75rem; color: #a38c77; margin-bottom: 8px;">[ ${q.type} ] · ${q.chap}</div>
+            <div class="quest-title">${q.title}</div>
+            <div class="npc-story">“${q.story}”</div>
+            <div class="quest-meta">
+                <span>赏金：${q.reward} Token</span>
+                <span>委托人：${q.npc}</span>
+            </div>
+            
+            <div style="display:${isAb?'none':'flex'}; gap:10px;" id="btn-group-${i}">
+                <button class="btn btn-solid" onclick="expandQuest(${i})">承接</button>
+                <button class="btn" style="border-color:#ccc; color:#888;" onclick="abandonQuest(${i})">放弃</button>
+            </div>
+            
+            <div style="display:${isAb?'flex':'none'}; justify-content:center;" id="btn-recover-${i}">
+                <button class="btn" onclick="recoverQuest(${i})">恢复任务</button>
+            </div>
+            
+            <div class="quest-action-area" id="action-area-${i}">
+                <textarea placeholder="在这里写下线索..."></textarea>
+                <input type="file" accept="image/*">
+                <div style="display:flex; gap:10px;">
+                    <button class="btn btn-solid" onclick="submitQuest(${i})">提交委托</button>
+                    <button class="btn" style="border-color:#ccc; color:#888;" onclick="collapseQuest(${i})">收起</button>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    function expandQuest(idx) { document.getElementById(`btn-group-${idx}`).style.display='none'; document.getElementById(`action-area-${idx}`).style.display='block'; }
+    function collapseQuest(idx) { document.getElementById(`action-area-${idx}`).style.display='none'; document.getElementById(`btn-group-${idx}`).style.display='flex'; }
+    
+    function abandonQuest(idx) {
+        state.questStates[idx] = "abandoned";
+        saveData(); renderQuests();
+    }
+    function recoverQuest(idx) {
+        state.questStates[idx] = "active";
+        saveData(); renderQuests();
+    }
+
+    function submitQuest(idx) {
+        let q = db[idx];
+        state.questStates[idx] = "completed";
+        state.completedNum++;
+        state.tokens += q.reward;
+        
+        let logText = `<div class="review-box"><span style="color:var(--accent-green); font-weight:bold;">[${q.chap}]</span> ${q.title}<br><div style="margin: 5px 0; color: #555;">💬 <b>${q.npc}:</b> "${q.npcReply}"</div><div style="font-size:0.75rem; color:gray;">入账：+${q.reward} Token</div></div>`;
+        state.logs.unshift(logText);
+        
+        saveData(); renderQuests(); renderMuseum(); renderProfile();
+    }
+
+    /* === 阅读与烟花 === */
+    function renderChapters() {
+        const list = document.getElementById('chapter-list');
+        list.innerHTML = "";
+        chaptersData.forEach((chap, idx) => {
+            let isCap = state.chaps.includes(idx);
+            list.innerHTML += `
+                <div class="chapter-item ${isCap ? 'captured' : ''}">
+                    <div class="chapter-title">
+                        <span>${chap.name}</span>
+                        <div>
+                            <button class="btn" style="padding: 4px 10px; font-size: 0.75rem; margin-right:10px;" onclick="openChapter(${idx})">📖 查阅</button>
+                            <button class="btn btn-solid" style="padding: 4px 10px; font-size: 0.75rem; ${isCap?'background:#ccc; border:none;':''}" onclick="toggleChapter(${idx})">${isCap?'已完成':'完成'}</button>
+                        </div>
+                    </div>
+                    <div class="chapter-desc">${chap.desc}</div>
+                </div>
+            `;
+        });
+        document.getElementById('completion-badge').style.display = (state.chaps.length === 10) ? 'block' : 'none';
+    }
+
+    function toggleChapter(idx) {
+        let capIndex = state.chaps.indexOf(idx);
+        if (capIndex > -1) { state.chaps.splice(capIndex, 1); } 
+        else {
+            state.chaps.push(idx);
+            launchRomanticFireworks();
+            if(state.chaps.length === 10) setTimeout(launchGrandFirework, 1000);
+        }
+        saveData(); renderChapters(); renderProfile();
+    }
+
+    function launchRomanticFireworks() {
+        const container = document.getElementById('fireworks-container');
+        const colors = ['#bda069', '#5c7a6e', '#8c4356', '#d1bfae', '#ffffff'];
+        const shapes = ['50%', '0%'];
+        for(let i=0; i<60; i++) {
+            let p = document.createElement('div');
+            p.className = 'fw-particle';
+            let size = Math.random() * 8 + 4;
+            p.style.width = size + 'px';
+            p.style.height = size + 'px';
+            p.style.background = colors[Math.floor(Math.random() * colors.length)];
+            p.style.borderRadius = shapes[Math.floor(Math.random() * shapes.length)];
+            
+            p.style.left = (20 + Math.random() * 60) + 'vw';
+            p.style.top = (10 + Math.random() * 20) + 'vh';
+            container.appendChild(p);
+            
+            let angle = Math.random() * Math.PI * 2;
+            let velocity = Math.random() * 50 + 20;
+            let tx = Math.cos(angle) * velocity;
+            let ty = Math.sin(angle) * velocity;
+            
+            p.animate([
+                { transform: `translate(0, 0) rotate(0deg)`, opacity: 1 },
+                { transform: `translate(${tx*2}px, ${ty*2 + 100}px) rotate(${Math.random()*180}deg)`, opacity: 0.8, offset: 0.3 },
+                { transform: `translate(${tx*3}px, window.innerHeight) rotate(${Math.random()*720}deg)`, opacity: 0 }
+            ], { duration: 4000 + Math.random() * 3000, easing: 'ease-in' }).onfinish = () => p.remove();
+        }
+    }
+
+    function launchGrandFirework() {
+        for(let i=0; i<3; i++) { setTimeout(launchRomanticFireworks, i * 800); }
+    }
+
+    /* === 展馆 === */
+    function renderMuseum() {
+        const timeline = document.getElementById('museum-timeline');
+        timeline.innerHTML = "";
+        db.forEach((item, i) => {
+            let isUnlocked = state.questStates[i] === "completed";
+            timeline.innerHTML += `
+                <div class="timeline-item ${isUnlocked ? 'unlocked' : ''}">
+                    <div class="artifact-node"></div>
+                    <div class="artifact-content">
+                        ${isUnlocked ? `<div class="art-name">${item.item}</div><div class="art-desc">${item.desc}</div>` : `<div class="art-name" style="color:#555;">未知馆藏</div><div style="font-size:0.75rem; color:#444; font-style:italic;">沉睡在星云中...</div>`}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    /* === 档案 === */
+    function renderProfile() {
+        document.getElementById('stat-time').innerText = Math.floor(state.readTimeTotal / 60);
+        document.getElementById('stat-quests').innerText = state.completedNum;
+        document.getElementById('stat-tokens').innerText = state.tokens;
+        
+        let lvText = "见习猎手";
+        if(state.completedNum >= 5) lvText = "初阶文字猎人";
+        if(state.completedNum >= 15) lvText = "高阶鉴赏家";
+        if(state.completedNum >= 25) lvText = "美学大宗师";
+        document.getElementById('hunter-level').innerText = lvText;
+        
+        let titleHTML = `<span class="title-badge">见习猎手</span>`;
+        for(let i=0; i<30; i++) {
+            if(state.questStates[i] === "completed" && db[i].titleUnlock) {
+                titleHTML += `<span class="title-badge">${db[i].titleUnlock}</span>`;
+            }
+        }
+        document.getElementById('title-tags').innerHTML = titleHTML;
+        document.getElementById('review-log').innerHTML = state.logs.length ? state.logs.join('') : "<p style='text-align:center; padding:20px 0; color:var(--text-light);'>空空如也，静待落笔。</p>";
+    }
+
+    function switchTab(tabId, el) {
+        document.querySelectorAll('.container').forEach(c => c.classList.remove('active-tab'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById(`tab-${tabId}`).classList.add('active-tab');
+        el.classList.add('active');
+        window.scrollTo(0, 0);
+    }
+
+    function saveData() {
+        localStorage.setItem('v6_qstates', JSON.stringify(state.questStates));
+        localStorage.setItem('v6_comp', state.completedNum);
+        localStorage.setItem('v6_tokens', state.tokens);
+        localStorage.setItem('v6_time', state.readTimeTotal);
+        localStorage.setItem('v6_logs', JSON.stringify(state.logs));
+        localStorage.setItem('v6_chaps', JSON.stringify(state.chaps));
+        if(state.epubLoc) localStorage.setItem('v6_epubLoc', state.epubLoc);
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
