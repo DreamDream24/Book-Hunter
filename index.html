@@ -169,9 +169,8 @@
         </div>
 
         <div class="epub-loader" id="epub-loader-area">
-            <p style="font-size: 0.85rem; margin-bottom: 10px;" id="epub-status-text">尚未挂载副本世界：《美的历程.epub》</p>
+            <p style="font-size: 0.85rem; margin-bottom: 15px; line-height:1.6;" id="epub-status-text">尚未挂载副本世界：《美的历程.epub》</p>
             <button class="btn btn-solid" id="epub-upload-btn" onclick="document.getElementById('epub-input').click()">注入EPUB文件</button>
-            <p style="font-size: 0.75rem; color:gray; margin-top: 5px;">*首次挂载可能需要几秒钟时间，请耐心等待。</p>
         </div>
 
         <p style="text-align: center; font-size: 0.85rem; color: var(--text-light); margin-bottom: 30px; line-height: 1.8;">点击章节进入阅读，或标记完成</p>
@@ -287,14 +286,14 @@
     ];
 
     let state = {
-        hunterName: localStorage.getItem('v10_name') || "",
-        questStates: JSON.parse(localStorage.getItem('v10_qstates')) || Array(30).fill("active"),
-        completedNum: parseInt(localStorage.getItem('v10_comp')) || 0,
-        tokens: parseInt(localStorage.getItem('v10_tokens')) || 0,
-        readTimeTotal: parseInt(localStorage.getItem('v10_time')) || 0,
-        logs: JSON.parse(localStorage.getItem('v10_logs')) || [],
-        chaps: JSON.parse(localStorage.getItem('v10_chaps')) || [],
-        epubLoc: localStorage.getItem('v10_epubLoc') || null
+        hunterName: localStorage.getItem('v11_name') || "",
+        questStates: JSON.parse(localStorage.getItem('v11_qstates')) || Array(30).fill("active"),
+        completedNum: parseInt(localStorage.getItem('v11_comp')) || 0,
+        tokens: parseInt(localStorage.getItem('v11_tokens')) || 0,
+        readTimeTotal: parseInt(localStorage.getItem('v11_time')) || 0,
+        logs: JSON.parse(localStorage.getItem('v11_logs')) || [],
+        chaps: JSON.parse(localStorage.getItem('v11_chaps')) || [],
+        epubLoc: localStorage.getItem('v11_epubLoc') || null
     };
 
     let timerInterval = null, timeLeft = 0, timeTotal = 0, isRunning = false;
@@ -315,7 +314,7 @@
         let name = document.getElementById('intro-input').value.trim();
         if(!name) return;
         state.hunterName = name;
-        localStorage.setItem('v10_name', name);
+        localStorage.setItem('v11_name', name);
         document.getElementById('profile-name').innerText = name;
         
         document.getElementById('intro-msg1').style.opacity = 0;
@@ -345,72 +344,82 @@
         renderProfile();
     }
 
-    /* === EPUB 核心逻辑 (V10.0 优先内存直读与静默存档版) === */
-    function initEpubFromUrl(url, isNewUpload) {
-        // 使用最坚固的 URL 直读方式初始化引擎
-        book = ePub(url);
-        
-        book.ready.then(() => {
-            if (isNewUpload) {
-                alert("副本数据已在内存中挂载成功！您可以开始阅读了。");
-                document.getElementById('epub-loader-area').style.display = 'none';
-            }
-            
-            // 尝试生成进度条（若失败不抛出，仅静默记录）
-            book.locations.generate(1600).then(() => {
-                updateReadingProgress();
-            }).catch(err => {
-                console.warn("因排版特殊，进度条暂不可用，但不影响翻阅");
-                document.getElementById('reading-pct').innerText = "进度未卜";
-            });
-            
-        }).catch(err => {
-            console.error("引擎挂载彻底失败", err);
-            if(isNewUpload) {
-                alert("文件解析异常，请检查文件是否损坏。");
-                document.getElementById('epub-status-text').innerText = "解析失败，请重新选择文件。";
-                document.getElementById('epub-upload-btn').style.display = 'inline-block';
-            }
-        });
-    }
-
+    /* === EPUB 核心逻辑 (V11.0 防御性编程+超时捕获版) === */
     async function loadStoredEpub() {
         try {
-            let buffer = await localforage.getItem('v10_epubBuffer');
+            let buffer = await localforage.getItem('v11_epub_buffer');
             if(buffer) {
                 document.getElementById('epub-loader-area').style.display = 'none';
-                
-                // 将安全存储的 ArrayBuffer 转回供引擎读取的虚拟 URL
-                let blob = new Blob([buffer], { type: "application/epub+zip" });
-                let url = URL.createObjectURL(blob);
-                initEpubFromUrl(url, false);
+                book = ePub();
+                await book.open(buffer, "binary");
+                book.locations.generate(1600).then(() => {
+                    updateReadingProgress();
+                }).catch(() => {});
             }
-        } catch(e) { console.warn("未找到本地书卷记录，或受到隐私策略限制", e); }
+        } catch(e) { }
     }
 
     function loadEpub(e) {
         let file = e.target.files[0];
-        if (file) {
-            document.getElementById('epub-status-text').innerText = "正在开辟内存专属通道，请稍候...";
-            document.getElementById('epub-upload-btn').style.display = 'none';
+        if (!file) return;
+
+        let statusText = document.getElementById('epub-status-text');
+        let uploadBtn = document.getElementById('epub-upload-btn');
+        
+        // 步骤一：读取文件
+        statusText.innerHTML = `<span style="color: var(--accent-green); font-weight: bold;">[1/3] 正在将书本搬运至内存...</span>`;
+        uploadBtn.style.display = 'none';
+
+        let reader = new FileReader();
+        reader.onload = async function(event) {
+            let buffer = event.target.result;
             
-            // 策略一：立刻生成内存虚拟 URL 并启动阅读器（绝对不卡壳，规避所有安全拦截）
-            let url = URL.createObjectURL(file);
-            initEpubFromUrl(url, true);
+            // 步骤二：解压重组
+            statusText.innerHTML = `<span style="color: var(--accent-green); font-weight: bold;">[2/3] 正在拆解并重组书卷结构...<br><span style="font-size: 0.75rem; font-weight: normal; color: gray;">（如遇图文大文件可能需要十几秒，请耐心等待）</span></span>`;
             
-            // 策略二：在后台悄悄将文件转化为安全的 ArrayBuffer 并尝试存档
-            let reader = new FileReader();
-            reader.onload = async function(event) {
-                let buffer = event.target.result;
-                try {
-                    await localforage.setItem('v10_epubBuffer', buffer);
-                } catch(err) {
-                    // 若受浏览器严格的安全或存储空间限制报错，仅在控制台静默提示，绝不打断用户的阅读
-                    console.warn("提示：受浏览器安全/隐私策略限制，本地存档未成功。本次网页标签页关闭前您可正常阅读。");
-                }
-            };
-            reader.readAsArrayBuffer(file);
-        }
+            // 稍作停顿，让浏览器的 UI 线程有时间把上面的文字渲染出来
+            await new Promise(r => setTimeout(r, 100));
+            
+            try {
+                book = ePub();
+                
+                // 核心修复点：为引擎解析加上 15 秒超时强制熔断，防止无限假死
+                const openWithTimeout = Promise.race([
+                    book.open(buffer, "binary"),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("解压超时 (15s)")), 15000))
+                ]);
+
+                await openWithTimeout;
+
+                // 步骤三：成功挂载
+                statusText.innerHTML = `<span style="color: var(--accent-green); font-weight: bold;">[3/3] 挂载成功！副本世界已开启。</span>`;
+                alert("《美的历程》挂载成功！请点击下方的章节按钮开始阅读。");
+                document.getElementById('epub-loader-area').style.display = 'none';
+
+                // 后台静默保存，若因安全策略失败，绝不打扰用户
+                localforage.setItem('v11_epub_buffer', buffer).catch(e => console.warn("缓存机制受限", e));
+
+                // 进度条生成放到后台执行，就算算不出来也不阻拦看书
+                book.locations.generate(1600).then(() => {
+                    updateReadingProgress();
+                }).catch(() => {
+                    document.getElementById('reading-pct').innerText = "进度未卜";
+                });
+
+            } catch(err) {
+                console.error("引擎解析彻底失败:", err);
+                statusText.innerHTML = `<span style="color: red;">抱歉，解析被强制中断：${err.message}</span><br><span style="font-size:0.75rem;color:gray;">可能是文件过大导致浏览器内存溢出，或是引擎不认识这种排版结构。您可以直接阅读，或换个浏览器试试。</span>`;
+                uploadBtn.style.display = 'inline-block';
+                uploadBtn.innerText = "重试 / 更换文件";
+            }
+        };
+
+        reader.onerror = function() {
+            statusText.innerHTML = `<span style="color: red;">文件读取被浏览器拦截，请刷新重试。</span>`;
+            uploadBtn.style.display = 'inline-block';
+        };
+
+        reader.readAsArrayBuffer(file);
     }
 
     function openChapter(chapIndex) {
@@ -421,9 +430,17 @@
         
         document.getElementById('reader-modal').style.display = "flex";
         
+        // 增加一点点延迟，确保弹窗完全展开，避免引擎获取到的渲染高度为 0
         setTimeout(() => {
             if(!rendition) {
-                rendition = book.renderTo("viewer", { width: "100%", height: "100%", spread: "none" });
+                // 增加排版强制参数，适应手机等复杂环境
+                rendition = book.renderTo("viewer", { 
+                    width: "100%", 
+                    height: "100%", 
+                    spread: "none",
+                    manager: "continuous",
+                    flow: "paginated"
+                });
                 rendition.on("relocated", function(location){
                     if(location && location.start) {
                         state.epubLoc = location.start.cfi;
@@ -435,7 +452,7 @@
             
             if(state.epubLoc) { rendition.display(state.epubLoc); } 
             else { rendition.display(); }
-        }, 100);
+        }, 150);
     }
 
     function closeReader() { document.getElementById('reader-modal').style.display = "none"; }
@@ -696,13 +713,13 @@
     }
 
     function saveData() {
-        localStorage.setItem('v10_qstates', JSON.stringify(state.questStates));
-        localStorage.setItem('v10_comp', state.completedNum);
-        localStorage.setItem('v10_tokens', state.tokens);
-        localStorage.setItem('v10_time', state.readTimeTotal);
-        localStorage.setItem('v10_logs', JSON.stringify(state.logs));
-        localStorage.setItem('v10_chaps', JSON.stringify(state.chaps));
-        if(state.epubLoc) localStorage.setItem('v10_epubLoc', state.epubLoc);
+        localStorage.setItem('v11_qstates', JSON.stringify(state.questStates));
+        localStorage.setItem('v11_comp', state.completedNum);
+        localStorage.setItem('v11_tokens', state.tokens);
+        localStorage.setItem('v11_time', state.readTimeTotal);
+        localStorage.setItem('v11_logs', JSON.stringify(state.logs));
+        localStorage.setItem('v11_chaps', JSON.stringify(state.chaps));
+        if(state.epubLoc) localStorage.setItem('v11_epubLoc', state.epubLoc);
     }
 
     window.onload = init;
