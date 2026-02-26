@@ -113,7 +113,7 @@
         #fireworks-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999; overflow: hidden; }
         .fw-particle { position: absolute; border-radius: 50%; opacity: 0; mix-blend-mode: multiply; }
 
-        /* EPUB 阅读器弹窗 (修复容器塌陷问题) */
+        /* EPUB 阅读器弹窗 */
         #reader-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fdfbf7; z-index: 1000; flex-direction: column; }
         .reader-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: var(--bg-color); border-bottom: 1px solid #ddd; }
         #viewer { flex: 1; width: 100%; height: 100%; overflow: hidden; position: relative; }
@@ -291,14 +291,14 @@
     ];
 
     let state = {
-        hunterName: localStorage.getItem('v6.1_name') || "",
-        questStates: JSON.parse(localStorage.getItem('v6.1_qstates')) || Array(30).fill("active"),
-        completedNum: parseInt(localStorage.getItem('v6.1_comp')) || 0,
-        tokens: parseInt(localStorage.getItem('v6.1_tokens')) || 0,
-        readTimeTotal: parseInt(localStorage.getItem('v6.1_time')) || 0,
-        logs: JSON.parse(localStorage.getItem('v6.1_logs')) || [],
-        chaps: JSON.parse(localStorage.getItem('v6.1_chaps')) || [],
-        epubLoc: localStorage.getItem('v6.1_epubLoc') || null
+        hunterName: localStorage.getItem('v6.2_name') || "",
+        questStates: JSON.parse(localStorage.getItem('v6.2_qstates')) || Array(30).fill("active"),
+        completedNum: parseInt(localStorage.getItem('v6.2_comp')) || 0,
+        tokens: parseInt(localStorage.getItem('v6.2_tokens')) || 0,
+        readTimeTotal: parseInt(localStorage.getItem('v6.2_time')) || 0,
+        logs: JSON.parse(localStorage.getItem('v6.2_logs')) || [],
+        chaps: JSON.parse(localStorage.getItem('v6.2_chaps')) || [],
+        epubLoc: localStorage.getItem('v6.2_epubLoc') || null
     };
 
     let timerInterval = null, timeLeft = 0, timeTotal = 0, isRunning = false;
@@ -319,7 +319,7 @@
         let name = document.getElementById('intro-input').value.trim();
         if(!name) return;
         state.hunterName = name;
-        localStorage.setItem('v6.1_name', name);
+        localStorage.setItem('v6.2_name', name);
         document.getElementById('profile-name').innerText = name;
         
         document.getElementById('intro-msg1').style.opacity = 0;
@@ -349,10 +349,10 @@
         renderProfile();
     }
 
-    /* === EPUB 核心逻辑 (修复版) === */
+    /* === EPUB 核心逻辑 (修复版 V6.2) === */
     async function loadStoredEpub() {
         try {
-            let storedData = await localforage.getItem('v6.1_epubData');
+            let storedData = await localforage.getItem('v6.2_epubData');
             if(storedData) {
                 document.getElementById('epub-loader-area').style.display = 'none';
                 initEpub(storedData);
@@ -370,7 +370,7 @@
             reader.onload = async function(event) {
                 let epubData = event.target.result;
                 try {
-                    await localforage.setItem('v6.1_epubData', epubData);
+                    await localforage.setItem('v6.2_epubData', epubData);
                     initEpub(epubData, true);
                 } catch(err) {
                     alert("本地存储失败，可能是文件过大或浏览器安全限制。");
@@ -383,7 +383,10 @@
 
     function initEpub(epubData, isNewUpload = false) {
         try {
-            book = ePub(epubData); // 修复点：直接传入 ArrayBuffer 初始化
+            // 明确指定使用 binary 模式加载 ArrayBuffer 数据，这是 ePub.js 成功解析的关键指令
+            book = ePub();
+            book.open(epubData, "binary"); 
+            
             book.ready.then(() => {
                 if(isNewUpload) {
                     alert("副本数据注入成功！");
@@ -397,7 +400,7 @@
             });
         } catch(e) { 
             console.error("EPUB解析失败", e);
-            alert("文件解析失败，请确保您上传的是标准的EPUB格式文件。");
+            alert("文件解析遇到阻碍，请检查文件大小或刷新重试。");
             document.getElementById('epub-status-text').innerText = "解析失败，请重试。";
             document.getElementById('epub-upload-btn').style.display = 'inline-block';
         }
@@ -409,7 +412,7 @@
             return;
         }
         
-        // 修复点：先显示容器，再进行渲染，防止尺寸塌陷为 0x0
+        // 确保容器先显示，避免 ePub.js 渲染时尺寸塌陷为 0x0
         document.getElementById('reader-modal').style.display = "flex";
         
         setTimeout(() => {
@@ -680,13 +683,13 @@
     }
 
     function saveData() {
-        localStorage.setItem('v6.1_qstates', JSON.stringify(state.questStates));
-        localStorage.setItem('v6.1_comp', state.completedNum);
-        localStorage.setItem('v6.1_tokens', state.tokens);
-        localStorage.setItem('v6.1_time', state.readTimeTotal);
-        localStorage.setItem('v6.1_logs', JSON.stringify(state.logs));
-        localStorage.setItem('v6.1_chaps', JSON.stringify(state.chaps));
-        if(state.epubLoc) localStorage.setItem('v6.1_epubLoc', state.epubLoc);
+        localStorage.setItem('v6.2_qstates', JSON.stringify(state.questStates));
+        localStorage.setItem('v6.2_comp', state.completedNum);
+        localStorage.setItem('v6.2_tokens', state.tokens);
+        localStorage.setItem('v6.2_time', state.readTimeTotal);
+        localStorage.setItem('v6.2_logs', JSON.stringify(state.logs));
+        localStorage.setItem('v6.2_chaps', JSON.stringify(state.chaps));
+        if(state.epubLoc) localStorage.setItem('v6.2_epubLoc', state.epubLoc);
     }
 
     window.onload = init;
