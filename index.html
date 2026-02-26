@@ -33,7 +33,7 @@
         .container { padding: 0 20px 20px; display: none; animation: fadeIn 0.6s ease; }
         .active-tab { display: block; }
         
-        /* 猎场控制台与进度条 */
+        /* 猎场控制台 */
         .hunt-dashboard { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid rgba(92,122,110,0.2); border-radius: 8px; padding: 20px; margin-bottom: 30px; }
         .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .timer-display { font-size: 2.5rem; font-variant-numeric: tabular-nums; font-weight: 300; color: var(--accent-green); }
@@ -59,7 +59,7 @@
         .finish-tape { position: fixed; top: 45%; left: -100%; width: 200%; background: var(--accent-red); color: #fff; font-size: 1.8rem; letter-spacing: 10px; font-weight: 300; text-align: center; padding: 6px 0; transform: rotate(-3deg); z-index: 300; opacity: 0; pointer-events: none; transition: all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow: 0 4px 20px rgba(140, 67, 86, 0.4); }
         .finish-tape.show { left: -50%; opacity: 1; }
 
-        /* 阅读进度 */
+        /* 阅读区 */
         .badge-container { text-align: center; margin-bottom: 20px; display: none; padding: 25px 20px; background: rgba(189, 160, 105, 0.05); border-radius: 8px; border: 1px solid var(--gold-leaf); animation: fadeIn 1s; }
         .epub-loader { text-align: center; padding: 25px 15px; border: 1px dashed var(--accent-green); border-radius: 6px; margin-bottom: 20px; background: rgba(92,122,110,0.05); transition: 0.3s; }
         .chapter-list { display: flex; flex-direction: column; gap: 15px; }
@@ -69,19 +69,17 @@
         .chapter-item.captured { border-color: var(--accent-green); background: rgba(92,122,110,0.05); }
         .chapter-item.captured .chapter-title { color: var(--accent-green); }
         
-        /* 展馆星云螺旋 */
+        /* 展馆 */
         #tab-museum { background-color: var(--museum-bg); color: #e0e0e0; min-height: 100vh; padding: 40px 20px; position: relative; overflow: hidden; }
         .museum-header { text-align: center; margin-bottom: 50px; position: relative; z-index: 10; }
         .museum-header h2 { font-weight: 300; letter-spacing: 5px; color: var(--gold-leaf); }
         .nebula-ribbon { position: absolute; top: 0; left: 50%; width: 140px; height: 100%; transform: translateX(-50%); background: radial-gradient(ellipse at center, rgba(92,122,110,0.3) 0%, rgba(189,160,105,0.1) 40%, transparent 70%); filter: blur(20px); z-index: 1; pointer-events: none; }
-        
         .timeline::before {
             content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
             width: 100px; height: 100%;
             background: url('data:image/svg+xml;utf8,<svg width="100" height="400" xmlns="http://www.w3.org/2000/svg"><path d="M50,0 C100,100 100,100 50,200 C0,300 0,300 50,400" stroke="%23bda069" fill="none" stroke-width="2" opacity="0.6"/></svg>') repeat-y top center;
             z-index: 1; filter: drop-shadow(0 0 8px rgba(92,122,110,0.8));
         }
-
         .timeline { position: relative; max-width: 600px; margin: 0 auto; padding-bottom: 50px; z-index: 10; }
         .timeline-item { position: relative; padding: 35px 0; width: 50%; }
         .timeline-item:nth-child(odd) { left: 0; padding-right: 40px; text-align: right; }
@@ -159,7 +157,6 @@
     </div>
 
     <div id="tab-reading" class="container">
-        
         <div class="badge-container" id="completion-badge">
             <div style="color: var(--gold-leaf); font-style: italic; letter-spacing: 2px; line-height: 1.8;">
                 ✦ 满室光华。猎人，你已将全卷刻入骨血。前路漫漫，请继续享受属于你的美学之旅。 ✦
@@ -174,7 +171,7 @@
         <div class="epub-loader" id="epub-loader-area">
             <p style="font-size: 0.85rem; margin-bottom: 10px;" id="epub-status-text">尚未挂载副本世界：《美的历程.epub》</p>
             <button class="btn btn-solid" id="epub-upload-btn" onclick="document.getElementById('epub-input').click()">注入EPUB文件</button>
-            <p style="font-size: 0.75rem; color:gray; margin-top: 5px;">*只需上传一次，将永久保存在本地。文件大时需耐心等待几秒。</p>
+            <p style="font-size: 0.75rem; color:gray; margin-top: 5px;">*只需上传一次，将永久保存在本地储物柜。</p>
         </div>
 
         <p style="text-align: center; font-size: 0.85rem; color: var(--text-light); margin-bottom: 30px; line-height: 1.8;">点击章节进入阅读，或标记完成</p>
@@ -289,16 +286,16 @@
         { name: "十、明清文艺", desc: "浪漫与纵欲，市井小说与园林时空。" }
     ];
 
-    // 更换新的本地存储键值，防止被旧的错误数据污染
+    // 更新存储前缀
     let state = {
-        hunterName: localStorage.getItem('v8_name') || "",
-        questStates: JSON.parse(localStorage.getItem('v8_qstates')) || Array(30).fill("active"),
-        completedNum: parseInt(localStorage.getItem('v8_comp')) || 0,
-        tokens: parseInt(localStorage.getItem('v8_tokens')) || 0,
-        readTimeTotal: parseInt(localStorage.getItem('v8_time')) || 0,
-        logs: JSON.parse(localStorage.getItem('v8_logs')) || [],
-        chaps: JSON.parse(localStorage.getItem('v8_chaps')) || [],
-        epubLoc: localStorage.getItem('v8_epubLoc') || null
+        hunterName: localStorage.getItem('v9_name') || "",
+        questStates: JSON.parse(localStorage.getItem('v9_qstates')) || Array(30).fill("active"),
+        completedNum: parseInt(localStorage.getItem('v9_comp')) || 0,
+        tokens: parseInt(localStorage.getItem('v9_tokens')) || 0,
+        readTimeTotal: parseInt(localStorage.getItem('v9_time')) || 0,
+        logs: JSON.parse(localStorage.getItem('v9_logs')) || [],
+        chaps: JSON.parse(localStorage.getItem('v9_chaps')) || [],
+        epubLoc: localStorage.getItem('v9_epubLoc') || null
     };
 
     let timerInterval = null, timeLeft = 0, timeTotal = 0, isRunning = false;
@@ -319,7 +316,7 @@
         let name = document.getElementById('intro-input').value.trim();
         if(!name) return;
         state.hunterName = name;
-        localStorage.setItem('v8_name', name);
+        localStorage.setItem('v9_name', name);
         document.getElementById('profile-name').innerText = name;
         
         document.getElementById('intro-msg1').style.opacity = 0;
@@ -349,17 +346,20 @@
         renderProfile();
     }
 
-    /* === EPUB 核心解耦逻辑 (终极防弹版 V8.0) === */
+    /* === EPUB 核心逻辑 (V9.0 原生Blob方案) === */
     async function loadStoredEpub() {
         try {
-            let storedData = await localforage.getItem('v8_epubData');
-            if(storedData) {
+            // 从本地数据库读取 Blob（实体文件块）
+            let storedBlob = await localforage.getItem('v9_epubBlob');
+            if(storedBlob) {
                 document.getElementById('epub-loader-area').style.display = 'none';
                 
-                // 直接挂载，不等待页码计算
-                book = ePub(storedData);
+                // 将 Blob 转换为浏览器原生支持的虚拟链接
+                let url = URL.createObjectURL(storedBlob);
+                
+                // 引擎最擅长读取链接，这样就避开了所有的底层编码坑
+                book = ePub(url);
                 book.ready.then(() => {
-                    // 页码计算剥离出来，即使失败也不影响 book.ready
                     book.locations.generate(1600).then(() => {
                         updateReadingProgress();
                     }).catch(err => {
@@ -372,44 +372,41 @@
 
     function loadEpub(e) {
         let file = e.target.files[0];
-        if (window.FileReader && file) {
-            document.getElementById('epub-status-text').innerText = "正在解析并挂载副本，请稍候...";
+        if (file) {
+            document.getElementById('epub-status-text').innerText = "正在通过底层链路挂载副本，请稍候...";
             document.getElementById('epub-upload-btn').style.display = 'none';
             
-            let reader = new FileReader();
-            reader.onload = async function(event) {
-                let epubData = event.target.result;
-                try {
-                    // 1. 先把数据保存在本地数据库
-                    await localforage.setItem('v8_epubData', epubData);
+            // 1. 直接将原始文件存入本地数据库
+            localforage.setItem('v9_epubBlob', file).then(() => {
+                
+                // 2. 将文件转化为虚拟链接
+                let url = URL.createObjectURL(file);
+                
+                // 3. 稳妥挂载
+                book = ePub(url);
+                
+                book.ready.then(() => {
+                    alert("副本数据注入成功！你可以点击章节开始阅读了。");
+                    document.getElementById('epub-loader-area').style.display = 'none';
                     
-                    // 2. 强行挂载书本
-                    book = ePub(epubData);
-                    
-                    book.ready.then(() => {
-                        alert("副本数据注入成功！你可以点击章节开始阅读了。");
-                        document.getElementById('epub-loader-area').style.display = 'none';
-                        
-                        // 3. 将页码计算剥离，用 catch 兜底，防止破坏 Promise 链
-                        book.locations.generate(1600).then(() => {
-                            updateReadingProgress();
-                        }).catch(err => {
-                            console.warn("由于该电子书排版特殊，进度条生成失败，但不影响您的正常阅读。");
-                            document.getElementById('reading-pct').innerText = "进度未卜";
-                        });
-                        
+                    book.locations.generate(1600).then(() => {
+                        updateReadingProgress();
                     }).catch(err => {
-                        throw new Error("书本核心无法读取");
+                        console.warn("进度条生成失败，但不影响您的正常阅读。");
+                        document.getElementById('reading-pct').innerText = "进度未卜";
                     });
-
-                } catch(err) {
-                    console.error("EPUB解析失败", err);
-                    alert("书卷结构特殊，无法解析。请确保它是标准的 EPUB 文件。");
+                }).catch(err => {
+                    console.error("引擎挂载失败", err);
+                    alert("文件解析遇到阻碍。");
                     document.getElementById('epub-status-text').innerText = "解析失败，请重新选择文件。";
                     document.getElementById('epub-upload-btn').style.display = 'inline-block';
-                }
-            };
-            reader.readAsArrayBuffer(file);
+                });
+
+            }).catch(err => {
+                console.error("本地存储失败", err);
+                alert("安全策略限制，无法存入本地。");
+                document.getElementById('epub-upload-btn').style.display = 'inline-block';
+            });
         }
     }
 
@@ -699,13 +696,13 @@
     }
 
     function saveData() {
-        localStorage.setItem('v8_qstates', JSON.stringify(state.questStates));
-        localStorage.setItem('v8_comp', state.completedNum);
-        localStorage.setItem('v8_tokens', state.tokens);
-        localStorage.setItem('v8_time', state.readTimeTotal);
-        localStorage.setItem('v8_logs', JSON.stringify(state.logs));
-        localStorage.setItem('v8_chaps', JSON.stringify(state.chaps));
-        if(state.epubLoc) localStorage.setItem('v8_epubLoc', state.epubLoc);
+        localStorage.setItem('v9_qstates', JSON.stringify(state.questStates));
+        localStorage.setItem('v9_comp', state.completedNum);
+        localStorage.setItem('v9_tokens', state.tokens);
+        localStorage.setItem('v9_time', state.readTimeTotal);
+        localStorage.setItem('v9_logs', JSON.stringify(state.logs));
+        localStorage.setItem('v9_chaps', JSON.stringify(state.chaps));
+        if(state.epubLoc) localStorage.setItem('v9_epubLoc', state.epubLoc);
     }
 
     window.onload = init;
