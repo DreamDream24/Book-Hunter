@@ -112,11 +112,12 @@
         #fireworks-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999; overflow: hidden; }
         .fw-particle { position: absolute; border-radius: 50%; opacity: 1; pointer-events: none; }
 
-        /* EPUB 阅读器弹窗 */
-        #reader-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fdfbf7; z-index: 1000; flex-direction: column; }
-        .reader-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: var(--bg-color); border-bottom: 1px solid #ddd; }
+        /* EPUB 阅读器弹窗及主题过渡 */
+        #reader-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fdfbf7; z-index: 1000; flex-direction: column; transition: background 0.4s ease; }
+        .reader-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background: var(--bg-color); border-bottom: 1px solid #ddd; transition: background 0.4s ease, border-color 0.4s ease; }
         #viewer { flex: 1; width: 100%; height: 100%; overflow: hidden; position: relative; }
-        .reader-footer { display: flex; justify-content: space-between; padding: 10px 20px; background: var(--bg-color); border-top: 1px solid #ddd; }
+        .reader-footer { display: flex; justify-content: space-between; padding: 10px 15px; background: var(--bg-color); border-top: 1px solid #ddd; transition: background 0.4s ease, border-color 0.4s ease; }
+        #reader-settings-panel { transition: background 0.4s ease; }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideDown { from { opacity: 0; height: 0; } to { opacity: 1; height: auto; } }
@@ -227,13 +228,37 @@
     </div>
 
     <div id="reader-modal">
-        <div class="reader-header">
-            <button class="btn" style="width:auto; padding:5px 15px;" onclick="closeReader()">返回退出</button>
-            <span style="font-size: 0.9rem; font-weight:bold; color:var(--text-main);">书卷阅读中</span>
-            <button class="btn" style="width:auto; padding:5px 15px;" onclick="addBookmark()">🔖 书签</button>
+        <div class="reader-header" id="reader-header">
+            <button class="btn" style="width:auto; padding:5px 12px; font-size:0.8rem;" onclick="closeReader()">返回</button>
+            <span id="reader-title" style="font-size: 0.9rem; font-weight:bold; color:var(--text-main);">书卷阅读中</span>
+            <div style="display:flex; gap:5px;">
+                <button class="btn" style="width:auto; padding:5px 10px; font-size:0.8rem;" onclick="toggleReaderSettings()">Aa 样式</button>
+                <button class="btn" style="width:auto; padding:5px 10px; font-size:0.8rem;" onclick="addBookmark()">🔖 书签</button>
+            </div>
         </div>
+        
+        <div id="reader-settings-panel" style="display: none; padding: 15px 20px; background: var(--bg-color); border-bottom: 1px solid #ddd;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                <span id="setting-text-1" style="font-size: 0.85rem; color: var(--text-light);">字体缩放</span>
+                <div>
+                    <button class="btn" style="padding: 2px 12px; width:auto;" onclick="changeFontSize(-10)">A -</button>
+                    <span id="font-size-display" style="display:inline-block; width: 45px; text-align:center; font-size: 0.85rem;">100%</span>
+                    <button class="btn" style="padding: 2px 12px; width:auto;" onclick="changeFontSize(10)">A +</button>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span id="setting-text-2" style="font-size: 0.85rem; color: var(--text-light);">阅读背景</span>
+                <div style="display: flex; gap: 15px;">
+                    <div style="width: 26px; height: 26px; border-radius: 50%; background: #fdfbf7; border: 2px solid #ccc; cursor: pointer;" onclick="changeTheme('default')" title="默认暖白"></div>
+                    <div style="width: 26px; height: 26px; border-radius: 50%; background: #cce8cf; border: 2px solid #ccc; cursor: pointer;" onclick="changeTheme('green')" title="护眼柔绿"></div>
+                    <div style="width: 26px; height: 26px; border-radius: 50%; background: #1a1a1a; border: 2px solid #555; cursor: pointer;" onclick="changeTheme('dark')" title="夜间暗色"></div>
+                </div>
+            </div>
+        </div>
+
         <div id="viewer"></div>
-        <div class="reader-footer">
+        
+        <div class="reader-footer" id="reader-footer">
             <button class="btn" onclick="rendition.prev()">上一页</button>
             <span id="reading-pct" style="font-size: 0.85rem; line-height: 2.5; color: var(--text-light);">计算中...</span>
             <button class="btn" onclick="rendition.next()">下一页</button>
@@ -241,7 +266,6 @@
     </div>
 
 <script>
-    // 检测引擎是否成功加载
     window.onload = function() {
         if (typeof ePub === 'undefined') {
             document.getElementById('epub-status-text').innerHTML = `<span style="color: red;">检测到您的网络拦截了阅读引擎，请尝试刷新网页或更换网络环境。</span>`;
@@ -303,7 +327,10 @@
         readTimeTotal: parseInt(localStorage.getItem('v12_time')) || 0,
         logs: JSON.parse(localStorage.getItem('v12_logs')) || [],
         chaps: JSON.parse(localStorage.getItem('v12_chaps')) || [],
-        epubLoc: localStorage.getItem('v12_epubLoc') || null
+        epubLoc: localStorage.getItem('v12_epubLoc') || null,
+        // 新增：阅读设置记忆
+        fontSize: parseInt(localStorage.getItem('v12_fontSize')) || 100,
+        theme: localStorage.getItem('v12_theme') || "default"
     };
 
     let timerInterval = null, timeLeft = 0, timeTotal = 0, isRunning = false;
@@ -447,6 +474,17 @@
                     manager: "continuous",
                     flow: "paginated"
                 });
+                
+                // 注册主题颜色
+                rendition.themes.register("default", { "body": { "background": "transparent", "color": "#2b2b2b" }});
+                rendition.themes.register("green", { "body": { "background": "transparent", "color": "#1c3320" }});
+                rendition.themes.register("dark", { 
+                    "body": { "background": "transparent", "color": "#cecece" },
+                    "h1": { "color": "#e0e0e0" },
+                    "h2": { "color": "#e0e0e0" },
+                    "h3": { "color": "#e0e0e0" }
+                });
+
                 rendition.on("relocated", function(location){
                     if(location && location.start) {
                         state.epubLoc = location.start.cfi;
@@ -456,12 +494,89 @@
                 });
             }
             
+            // 每次打开应用用户的专属样式设置
+            document.getElementById('font-size-display').innerText = state.fontSize + "%";
+            rendition.themes.fontSize(state.fontSize + "%");
+            changeTheme(state.theme);
+
             if(state.epubLoc) { rendition.display(state.epubLoc); } 
             else { rendition.display(); }
         }, 150);
     }
 
-    function closeReader() { document.getElementById('reader-modal').style.display = "none"; }
+    // --- 新增：设置面板控制逻辑 ---
+    function toggleReaderSettings() {
+        let panel = document.getElementById('reader-settings-panel');
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function changeFontSize(delta) {
+        state.fontSize += delta;
+        if(state.fontSize < 60) state.fontSize = 60;   // 最小缩放
+        if(state.fontSize > 250) state.fontSize = 250; // 最大缩放
+        if(rendition) rendition.themes.fontSize(state.fontSize + "%");
+        document.getElementById('font-size-display').innerText = state.fontSize + "%";
+        saveData();
+    }
+
+    function changeTheme(themeName) {
+        state.theme = themeName;
+        if(rendition) rendition.themes.select(themeName);
+        
+        let modal = document.getElementById('reader-modal');
+        let header = document.getElementById('reader-header');
+        let footer = document.getElementById('reader-footer');
+        let panel = document.getElementById('reader-settings-panel');
+        let title = document.getElementById('reader-title');
+        let pct = document.getElementById('reading-pct');
+        let t1 = document.getElementById('setting-text-1');
+        let t2 = document.getElementById('setting-text-2');
+
+        if(themeName === 'green') {
+            modal.style.background = '#cce8cf';
+            header.style.background = '#b5d6b8';
+            footer.style.background = '#b5d6b8';
+            panel.style.background = '#b5d6b8';
+            title.style.color = '#1c3320';
+            pct.style.color = '#1c3320';
+            t1.style.color = '#1c3320';
+            t2.style.color = '#1c3320';
+            header.style.borderColor = '#9ebc9f';
+            footer.style.borderColor = '#9ebc9f';
+            panel.style.borderColor = '#9ebc9f';
+        } else if(themeName === 'dark') {
+            modal.style.background = '#1a1a1a';
+            header.style.background = '#2c2c2c';
+            footer.style.background = '#2c2c2c';
+            panel.style.background = '#2c2c2c';
+            title.style.color = '#cecece';
+            pct.style.color = '#888';
+            t1.style.color = '#aaa';
+            t2.style.color = '#aaa';
+            header.style.borderColor = '#444';
+            footer.style.borderColor = '#444';
+            panel.style.borderColor = '#444';
+        } else {
+            modal.style.background = '#fdfbf7';
+            header.style.background = '#f2f0e6';
+            footer.style.background = '#f2f0e6';
+            panel.style.background = '#f2f0e6';
+            title.style.color = '#2b2b2b';
+            pct.style.color = '#707070';
+            t1.style.color = '#707070';
+            t2.style.color = '#707070';
+            header.style.borderColor = '#ddd';
+            footer.style.borderColor = '#ddd';
+            panel.style.borderColor = '#ddd';
+        }
+        saveData();
+    }
+    // ----------------------------
+
+    function closeReader() { 
+        document.getElementById('reader-modal').style.display = "none"; 
+        document.getElementById('reader-settings-panel').style.display = "none";
+    }
     
     function addBookmark() {
         if(!rendition || !state.epubLoc) return;
@@ -721,6 +836,10 @@
         localStorage.setItem('v12_logs', JSON.stringify(state.logs));
         localStorage.setItem('v12_chaps', JSON.stringify(state.chaps));
         if(state.epubLoc) localStorage.setItem('v12_epubLoc', state.epubLoc);
+        
+        // 存储新增设置
+        localStorage.setItem('v12_fontSize', state.fontSize);
+        localStorage.setItem('v12_theme', state.theme);
     }
 
 </script>
