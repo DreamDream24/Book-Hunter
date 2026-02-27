@@ -328,7 +328,6 @@
         logs: JSON.parse(localStorage.getItem('v12_logs')) || [],
         chaps: JSON.parse(localStorage.getItem('v12_chaps')) || [],
         epubLoc: localStorage.getItem('v12_epubLoc') || null,
-        // 新增：阅读设置记忆
         fontSize: parseInt(localStorage.getItem('v12_fontSize')) || 100,
         theme: localStorage.getItem('v12_theme') || "default"
     };
@@ -475,7 +474,6 @@
                     flow: "paginated"
                 });
                 
-                // 注册主题颜色
                 rendition.themes.register("default", { "body": { "background": "transparent", "color": "#2b2b2b" }});
                 rendition.themes.register("green", { "body": { "background": "transparent", "color": "#1c3320" }});
                 rendition.themes.register("dark", { 
@@ -492,9 +490,37 @@
                         updateReadingProgress();
                     }
                 });
+
+                // ==========================================
+                // V14.0 核心逻辑：注入底层手势滑动监听
+                // ==========================================
+                let touchStartX = 0;
+                let touchStartY = 0;
+
+                rendition.on('touchstart', event => {
+                    touchStartX = event.changedTouches[0].screenX;
+                    touchStartY = event.changedTouches[0].screenY;
+                });
+
+                rendition.on('touchend', event => {
+                    let touchEndX = event.changedTouches[0].screenX;
+                    let touchEndY = event.changedTouches[0].screenY;
+                    
+                    let deltaX = touchEndX - touchStartX;
+                    let deltaY = touchEndY - touchStartY;
+                    
+                    // 阈值判断：横向滑动距离大于 50，且纵向滑动偏离小于 100（防止上下滚动误触）
+                    if (Math.abs(deltaX) > 50 && Math.abs(deltaY) < 100) {
+                        if (deltaX > 0) {
+                            rendition.prev(); // 向右滑，回到上一页
+                        } else {
+                            rendition.next(); // 向左滑，进入下一页
+                        }
+                    }
+                });
+                // ==========================================
             }
             
-            // 每次打开应用用户的专属样式设置
             document.getElementById('font-size-display').innerText = state.fontSize + "%";
             rendition.themes.fontSize(state.fontSize + "%");
             changeTheme(state.theme);
@@ -504,7 +530,6 @@
         }, 150);
     }
 
-    // --- 新增：设置面板控制逻辑 ---
     function toggleReaderSettings() {
         let panel = document.getElementById('reader-settings-panel');
         panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
@@ -512,8 +537,8 @@
 
     function changeFontSize(delta) {
         state.fontSize += delta;
-        if(state.fontSize < 60) state.fontSize = 60;   // 最小缩放
-        if(state.fontSize > 250) state.fontSize = 250; // 最大缩放
+        if(state.fontSize < 60) state.fontSize = 60;   
+        if(state.fontSize > 250) state.fontSize = 250; 
         if(rendition) rendition.themes.fontSize(state.fontSize + "%");
         document.getElementById('font-size-display').innerText = state.fontSize + "%";
         saveData();
@@ -571,7 +596,6 @@
         }
         saveData();
     }
-    // ----------------------------
 
     function closeReader() { 
         document.getElementById('reader-modal').style.display = "none"; 
@@ -837,7 +861,6 @@
         localStorage.setItem('v12_chaps', JSON.stringify(state.chaps));
         if(state.epubLoc) localStorage.setItem('v12_epubLoc', state.epubLoc);
         
-        // 存储新增设置
         localStorage.setItem('v12_fontSize', state.fontSize);
         localStorage.setItem('v12_theme', state.theme);
     }
